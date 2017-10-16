@@ -1,0 +1,85 @@
+<link rel="import" href="../../../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../../../bower_components/app-route/app-location.html">
+<link rel="import" href="../../../bower_components/app-route/app-route.html">
+<link rel="import" href="../../../bower_components/iron-pages/iron-pages.html">
+<link rel="import" href="../profile/jssip-profile.html">
+<link rel="import" href="../call/jssip-call.html">
+<link rel="import" href="../not-found/jssip-not-found.html">
+<script src="../../constants/pages.js"></script>
+<script src="../../libs/storage.js"></script>
+<dom-module id="jssip-polymer-app">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+    </style>
+    <!-- app-location binds to the app's URL -->
+    <app-location route="{{route}}"></app-location>
+
+    <!-- this app-route manages the top-level routes -->
+    <app-route route="{{route}}" pattern="/:page" data="{{routeData}}" tail="{{subroute}}">
+    </app-route>
+    <iron-pages selected="[[routeData.page]]" attr-for-selected="name" fallback-selection="notFound" role="main">
+      <jssip-profile profile="{{profile}}" id="profile" name="profile"></jssip-profile>
+      <jssip-call profile="{{profile}}" id="call" name=""></jssip-call>
+      <jssip-not-found name="notFound"></jssip-not-found>
+    </iron-pages>
+  </template>
+
+  <script>
+    /**
+     * @customElement
+     * @polymer
+     */
+    class JssipPolymerApp extends Polymer.Element {
+      static get is() { return 'jssip-polymer-app'; }
+      static get properties() {
+        return {
+          page: {
+            type: String,
+            reflectToAttribute: true,
+            value: '/'
+          },
+          routeData: Object,
+          subroute: String,
+          rootPath: String,
+          clickedExit: {
+            type: Boolean,
+            value: false
+          },
+        };
+      }
+      static get observers() {
+        return [
+          '_routeChanged(routeData.page)'
+        ];
+      }
+
+      connectedCallback() {
+        super.connectedCallback();
+        this.$.call.addEventListener('exit', this.exit);
+      }
+
+      _routeChanged(page) {
+        if (!this.pageExists(page)) {
+          this.set('route.path', 'notFound');
+        }
+        if (!this.profileExists()) {
+          this.set('route.path', '/profile')
+        }
+      }
+
+      pageExists(page) {
+        return (Object.values(window.constants.pages).indexOf(page)) > -1;
+      }
+
+      profileExists() {
+        const profile = window.libs.storage.getProfile();
+        return Object.keys(profile).length !== 0 && profile.constructor === Object;
+      }
+    }
+
+    window.customElements.define(JssipPolymerApp.is, JssipPolymerApp);
+  </script>
+</dom-module>

@@ -1,0 +1,23 @@
+<link rel="import" href="../../../bower_components/polymer/polymer-element.html">
+<dom-module id="jssip-not-found">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+    </style>
+   <h1>Page not found</h1>
+  </template>
+
+  <script>
+    /**
+     * @customElement
+     * @polymer
+     */
+    class JsSipNotFound extends Polymer.Element {
+      static get is() { return 'jssip-not-found'; }
+    }
+
+    window.customElements.define(JsSipNotFound.is, JsSipNotFound);
+  </script>
+</dom-module>

@@ -1,0 +1,353 @@
+<link rel="import" href="../../../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../../../bower_components/app-layout/app-layout.html">
+<link rel="import" href="../../../bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../../../bower_components/iron-icons/iron-icons.html">
+<link rel="import" href="../../../bower_components/app-route/app-location.html">
+<link rel="import" href="../../../bower_components/paper-button/paper-button.html">
+<link rel="import" href="../../../bower_components/paper-input/paper-input.html">
+<script src="../../../bower_components/jssip/dist/jssip.js"></script>
+
+<dom-module id="jssip-call">
+  <template>
+    <style is="custom-style">
+      :host {
+        display: block;
+      }
+
+      app-toolbar {
+        background-color: var(--paper-light-blue-500);
+        color: #fff;
+      }
+
+      app-header {
+        @apply --layout-fixed-top;
+        overflow: hidden;
+      }
+
+      .callingBox {
+        @apply --layout-fixed-bottom;
+        background-color: var(--paper-light-blue-500);
+        overflow: hidden;
+      }
+
+      .hangUpBox {
+        @apply --layout-fixed-bottom;
+        background-color: var(--paper-light-blue-500);
+        overflow: hidden;
+        width: 50%;
+        margin: auto;
+      }
+
+      paper-button {
+        margin: 20px 10px;
+        background-color: var(--paper-light-blue-500);
+      }
+
+      paper-button[disabled] {
+        background-color: var(--paper-grey-400);
+        color: var(--paper-grey-900);
+      }
+
+      .content {
+        padding-top: 64px;
+      }
+
+      .call_form {
+        display: flex;
+      }
+
+      .call_form>paper-input {
+        margin-right: 10px;
+      }
+
+      .dtmf_form {
+        display: flex;
+      }
+
+      .dtmf_form > paper-input {
+        margin-right: 10px;
+
+      }
+
+      .callingBox > paper-button {
+          float: right;
+      }
+
+      .callingBox > paper-button[accept] {
+        background-color: var(--paper-green-500);
+      }
+
+      .callingBox > paper-button[reject] {
+        background-color: var(--paper-red-500);
+      }
+
+      .panel {
+        width: 100%;
+        height: 450px;
+        margin-bottom: 20px;
+      }
+
+      .videoBox {
+        flex: 1;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+      }
+
+      .videoBox > video {
+        flex: 1;
+      }
+
+      .dtmfBox {
+        overflow-y: auto;
+        flex: 1;
+        align-self: stretch;
+      }
+
+    </style>
+    <app-location route="{{route}}"></app-location>
+    <app-header reveals>
+      <app-toolbar>
+        <div main-title>[[profile.login]]</div>
+        <paper-icon-button on-click="handleExit" icon="close"></paper-icon-button>
+      </app-toolbar>
+    </app-header>
+    <div class="content">
+      <div class="call_form">
+        <paper-input label="Callee" value="{{callee}}" name="Callee"></paper-input>
+        <paper-button on-click="handleCall" disabled="[[buttonDisabled]]">Call</paper-button>
+      </div>
+      <div class="dtmf_form">
+          <paper-input label="Dtmf value" value="{{dtmf.tone}}" name="Value"></paper-input>
+          <paper-input label="Dtmf duration" value="{{dtmf.duration}}" name="duration" type="number"></paper-input>
+          <paper-input label="Dtmf interToneGap" value="{{dtmf.interToneGap}}" name="interToneGap" type="number"></paper-input>
+          <paper-button on-click="handleDtmf" disabled="[[sendDtmfButtonDisabled]]">Send</paper-button>
+        </div>
+      <div class="panel">
+        <div class="videoBox">
+          <video id="remoteVideo" autoplay>
+          </video>
+          <paper-button on-click="handleHangUp" hidden="[[hangUpButtonHidden]]">Hang Up</paper-button>
+          <div class="dtmfBox">
+            <template is="dom-repeat" items="{{dtmf_tones}}">
+              <div>[[item]]</div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="callingBox" hidden="[[callingBoxHidden]]">
+      <paper-button on-click="handleAccept" accept>Accept</paper-button>
+      <paper-button on-click="handleReject" reject>Reject</paper-button>
+    </div>
+  </template>
+
+  <script>
+    /**
+     * @customElement
+     * @polymer
+     */
+    class JsSipCall extends Polymer.Element {
+      static get is() { return 'jssip-call'; }
+      static get properties() {
+        return {
+          profile: {
+            type: Object,
+            value: {
+              login: '',
+              password: '',
+              url: '',
+              port: '',
+              transport: 'ws'
+            }
+          },
+          callee: {
+            type: String,
+            value: ''
+          },
+          dtmf: {
+              type: Object,
+              value: {
+                  tone: '#',
+                  duration: 100,
+                  interToneGap: 500
+              }
+          },
+          dtmf_tones: {
+              type: Array,
+              value: []
+          },
+          buttonDisabled: {
+            type: Boolean,
+            value: true
+          },
+          sendDtmfButtonDisabled: {
+              type: Boolean,
+              value: true
+          },
+          callingBoxHidden: {
+            type: Boolean,
+            value: true
+          },
+          hangUpButtonHidden: {
+              type: Boolean,
+              value: true
+          }
+        };
+      }
+
+      static get observers() {
+        return [
+          'calleeChange(callee)'
+        ];
+      }
+
+      calleeChange(callee) {
+        if (callee) {
+          this.set('buttonDisabled', false);
+        } else {
+          this.set('buttonDisabled', true);
+        }
+      }
+
+      connectedCallback() {
+        super.connectedCallback()
+        this.parentNode.addEventListener("iron-select", (e) => this.changeRoute(e))
+      }
+
+      loadDefault() {
+        const defaultProfile = window.libs.storage.getProfile();
+        if (Object.keys(defaultProfile).length !== 0 && defaultProfile.constructor === Object) {
+          this.set('profile', defaultProfile);
+        }
+      }
+
+      handleExit() {
+        this.ua.stop();
+        this.set('callee', '');
+        this.set('route.path', '/profile');
+      }
+
+      changeRoute(e) {
+        if (e.detail.item.id === 'call') {
+          this.loadDefault();
+          this.connect();
+        }
+      }
+
+      connect() {
+        var socket = new JsSIP.WebSocketInterface(this.getSocketAddress());
+        var configuration = {
+          sockets: [socket],
+          uri: this.getUri(this.profile.login),
+          password: this.profile.password
+        };
+        this.ua = new JsSIP.UA(configuration);
+        this.ua.start();
+
+        this.ua.on('newRTCSession', ({ originator, session, request }) => {
+          this.session = session;
+          if (originator === 'local') {
+            console.log('outgoing call');
+          } else if (originator === 'remote') {
+            console.log('incoming call');
+            this.set('callingBoxHidden', false)
+          }
+
+          session.on("ended",  () =>{
+            this.set('hangUpButtonHidden', true);
+            this.set('buttonDisabled', false);
+            this.set('sendDtmfButtonDisabled', true);
+            this.set('dtmf_tones', []);
+            this.$.remoteVideo.srcObject = null;
+          });
+
+          session.on("newDTMF", ({originator, dtmf, request}) =>{
+            if (originator === 'remote') {
+              this.push('dtmf_tones', `Received tone: ${dtmf.tone}. Duration: ${dtmf.duration}`);
+            } else if (originator === 'local') {
+              this.push('dtmf_tones', `Sent tone: ${dtmf.tone}. Duration: ${dtmf.duration}`);
+            }
+          });
+
+          session.on('accepted', () => {
+            this.set('hangUpButtonHidden', false);
+            this.set('buttonDisabled', true);
+            this.set('sendDtmfButtonDisabled', false);
+
+            const stream = session.connection.getRemoteStreams()[0];
+              const remoteVideo = this.$.remoteVideo;
+              remoteVideo.srcObject = stream;
+            });
+        });
+      }
+
+      getSocketAddress() {
+        return `${this.profile.transport}://${this.profile.url}:${this.profile.port}`;
+      }
+
+      getUri(login) {
+        return `${login}@${this.profile.url}`;
+      }
+
+      handleCall() {
+        this.ua.call(this.getUri(this.callee), {
+            mediaConstraints : { audio: true, video: true },
+            rtcOfferConstraints : { offerToReceiveAudio: 1, offerToReceiveVideo: 1 },
+            sessionTimersExpires: 1000,
+            pcConfig:
+                {
+                    rtcpMuxPolicy : 'negotiate',
+                    iceServers    :
+                        [
+                            { urls : [ 'stun:stun.l.google.com:19302' ] }
+                        ]
+                }
+        });
+      }
+
+      handleAccept() {
+          if (this.session) {
+              this.set('callingBoxHidden', true);
+              this.session.answer({
+                  mediaConstraints: {
+                      audio: true,
+                      video: true
+                  }
+              });
+          }
+      }
+
+      handleReject() {
+        if (this.session) {
+          this.set('callingBoxHidden', true);
+          this.set('hangUpButtonHidden', true);
+          this.session.terminate();
+        }
+      }
+
+      handleHangUp() {
+        if (this.session) {
+          this.session.terminate();
+          this.set('hangUpButtonHidden', true);
+          this.$.remoteVideo.srcObject = null;
+        }
+      }
+
+      handleDtmf() {
+        const tone = this.dtmf.tone;
+        var options = {
+           'duration': this.dtmf.duration,
+           'interToneGap': this.dtmf.interToneGap
+        };
+        if(this.session) {
+          this.session.sendDTMF(tone, options);
+        }
+      }
+
+    }
+
+    window.customElements.define(JsSipCall.is, JsSipCall);
+  </script>
+</dom-module>

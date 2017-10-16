@@ -1,0 +1,132 @@
+<link rel="import" href="../../../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../../../bower_components/paper-styles/shadow.html">
+<link rel="import" href="../../../bower_components/paper-button/paper-button.html">
+<link rel="import" href="../../../bower_components/paper-input/paper-input.html">
+<link rel="import" href="../../../bower_components/paper-dropdown-menu/paper-dropdown-menu.html">
+<link rel="import" href="../../../bower_components/paper-item/paper-item.html">
+<link rel="import" href="../../../bower_components/paper-listbox/paper-listbox.html">
+<link rel="import" href="../../../bower_components/paper-styles/color.html">
+<link rel="import" href="../../../bower_components/app-route/app-location.html">
+
+<dom-module id="jssip-profile">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+
+      .shadow-4dp {
+        @apply --shadow-elevation-4dp;
+      }
+
+      .container {
+        width: 40%;
+        padding: 20px;
+        margin-left: auto;
+        margin-right: auto;
+        overflow: hidden;
+      }
+
+      paper-dropdown-menu {
+        width: 100%;
+      }
+
+      paper-listbox {
+        width: 100%;
+      }
+
+      paper-button {
+        margin: 20px 0;
+        background-color: var(--paper-light-blue-500);
+        float: right;
+      }
+      paper-button[disabled] {
+        background-color: var(--paper-grey-400);
+        color: var(--paper-grey-900);
+      }
+    </style>
+    <app-location route="{{route}}"></app-location>
+    <div class="container shadow-4dp">
+      <paper-input label="Login" value="{{profile.login}}" name="login"></paper-input>
+      <paper-input label="Password" value="{{profile.password}}" name="password" type="password"></paper-input>
+      <paper-input label="Url" value="{{profile.url}}" name="name"></paper-input>
+      <paper-input label="Port" value="{{profile.port}}" name="name"></paper-input>
+      <paper-dropdown-menu label="Transport">
+        <paper-listbox slot="dropdown-content" selected="{{profile.transport}}" attr-for-selected="name">
+          <paper-item name="ws">ws</paper-item>
+          <paper-item name="wss">wss</paper-item>
+        </paper-listbox>
+      </paper-dropdown-menu>
+      <paper-button on-click="handleEnter" disabled="[[buttonDisabled]]">Enter</paper-button>
+    </div>
+  </template>
+
+  <script>
+    /**
+     * @customElement
+     * @polymer
+     */
+    class JsSipProfile extends Polymer.Element {
+      static get is() { return 'jssip-profile'; }
+      static get properties() {
+        return {
+          profile: {
+            type: Object,
+            value: {
+              login: '',
+              password: '',
+              url: '',
+              port: '',
+              transport: 'ws'
+            },
+            buttonDisabled: {
+              type: String,
+              value: true
+            }
+          }
+        };
+      }
+
+      static get observers() {
+        return [
+          'profileChange(profile.*)'
+        ];
+      } 
+
+      connectedCallback() {
+        this.loadDefault();
+        window.addEventListener('enter', this.enter);
+      }
+
+      loadDefault() {
+        const defaultProfile = window.libs.storage.getProfile();
+        if (Object.keys(defaultProfile).length !== 0 && defaultProfile.constructor === Object) {
+          this.set('profile', defaultProfile);
+        }  
+      }
+
+      profileChange(profile) {
+          if (this.isProfileCorrect()) {
+            this.set('buttonDisabled', false); 
+          } else {
+            this.set('buttonDisabled', true);
+          }
+      }
+
+      isProfileCorrect() {
+        return !Object.values(this.profile).some((value) => {
+          return value === '';
+        });
+      }
+
+      handleEnter () {
+          if (!this.buttonDisabled) {
+            window.libs.storage.saveProfile(this.profile);
+            this.set('route.path', '/') 
+          }
+      }
+    }
+
+    window.customElements.define(JsSipProfile.is, JsSipProfile);
+  </script>
+</dom-module>
